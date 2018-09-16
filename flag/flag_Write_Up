@@ -1,0 +1,125 @@
+Papa brought me a packed present! let's open it.
+
+Download : http://pwnable.kr/bin/flag
+
+This is reversing task. all you need is binary
+
+====================================================================
+
+flag 라는 바이너리를 제공
+
+flag 를 gdb 로 깔경우
+
+root@PDM0205-E1:/home/pental/sh/pwnable.kr/flag# gdb -q flag
+Reading symbols from flag...(no debugging symbols found)...done.
+(gdb) disas main
+No symbol table is loaded.  Use the "file" command.
+(gdb) file
+No executable file now.
+No symbol file now.
+
+====================================================================
+IDA pro 64bit 로 까면
+
+string 에서 
+LOAD:0000000000443668 00000018 C '12Wr%W345%Wr%67x!Wr892
+LOAD:000000000044A695 00000010 C //upx.sf.net $\n       
+LOAD:000000000044A7A0 0000000E C proc/self/exe          
+
+upx ~~ 발견 가능.
+====================================================================
+cmd : upx -d flag
+====================================================================
+string 을 확인하면 flag 획득
+
+.rodata:0000000000496628 0000002A C UPX...? sounds like a delivery service :)          
+.rodata:0000000000496658 00000034 C I will malloc() and strcpy the flag there. take it.
+.rodata:000000000049668C 00000017 C FATAL: kernel too old\n                            
+.rodata:00000000004966A3 0000000D C /dev/urandom                                       
+
+FLAG = UPX...? sounds like a delivery service :)
+
+====================================================================
+
+pwnable.kr Toddler's Bottle 4번째 문제 flag 문제 풀이입니다.
+
+먼저 어떤 문제인지 살펴보죠.
+
+
+이번 문제는 리버싱이 필요한 문제라고 합니다.
+위를 보면 http://pwnable.kr/bin/flag    에서 flag 문제의 바이너리를 받을 수 있네요
+
+바이너리를 받은 후에 리버싱해보겠습니다.
+저는 IDA를 사용해서 리버싱을 진행할건데요
+
+
+
+IDA를 통해 flag 바이너리를 열어봤습니다.
+
+
+
+
+
+여기서 저는 먼저 바이너리에서 어떤 특징적인 string 이 사용 된 것이 있는지 살펴보겠습니다.
+string을 찾기 위해 IDA 퀵뷰(ctrl+1)에서 strings 항목에 들어가면 됩니다.
+
+
+
+
+
+IDA를 통해 해당 바이너리에서 사용된 string 을 살펴보니 추가적인 검색 없이 다음과 같은 항목들이 나옵니다.
+
+여기서 특징적으로 보이는게 //upx.sf.net $\n 이라는 string이 있네요
+이게 무엇을 의미하는지 모르니 검색 해보니
+
+UPX(Ultimate Packer for eXecutable) 로 패킹되어있다는 것을 의미하네요
+
+패킹이란 간단히 말해 실행 압축이라고도 하는데요
+실행압축은 실행 파일 내부에 압축/해제를 담당하는 코드를 담고 있어
+평상시에(파일을 실행하기 전)에는 코드가 압축상태로 존재하다가
+파일을 실행하여 메모리에 올라갈 때 압축이 해제되며 실행되는 형식입니다.
+
+그렇다면 패킹은 왜 하는 것일까요? 크게 두가지 이유가 있는데요
+1. 패킹의 원래 목적인 파일의 크기를 줄이면서 실행 가능하게 할 수 있는 장점
+2. 파일이 역분석 당할 위험으로부터 보호 받을 수 있음.
+파일이 패킹되면 코드 또한 압축되므로 정적 분석으로 main함수를 찾기가 어려워진다.
+OEP(Original Entry Point)를 찾기 어려워짐.
+
+이렇게 패킹되어있는 파일을 다시 풀어주는 기술을 언패킹이라고 합니다.
+일반적으로 언패킹을 할 때 
+1. 언패킹 툴을 사용해서 언패킹하는 방법
+2. 어셈블리 코드와 IAT EAT등을 참조하며 언패킹하는 방법
+
+저는 이번 문제 풀이에서는 그냥 간단한게 언패킹 툴을 사용해서 언패킹을 하겠습니다.
+(직접 언패킹을 하는 방법은 차후에 리버싱 카테고리에서 패킹/언패킹 글을 쓰면서 다뤄보겠습니다.)
+
+upx 언패킹 툴 : 위의 그림에서 string에 있는 upx.sf.net 에서 받을 수 있습니다.
+
+upx 언패킹 툴을 설치해서 cmd 창에서 실행시켜보니 다음과 같은 옵션으로 사용하는 툴인 것을 알 수 있습니다.
+
+
+
+
+이제 upx 언패킹을 진행해보겠습니다.
+
+
+위와 같은 옵션으로 언패킹을 진행하면
+원본 flag 파일이 언패킹되어 용량이 바뀌게 된 것을 확인 가능합니다.
+
+이제 UPX 언패킹 된 flag 파일을 다시 IDA 를 통해 분석해보겠습니다.
+
+
+
+
+익숙한 함수들이 보이고 언패킹이 잘 된것 같습니다!!
+이제 다시 string을 확인해 보겠습니다.
+
+
+
+
+string 을 확인하자마자 flag가 보이는군요.
+이 문제는 아마 자세한 리버싱을 하는 문제라기보다
+UPX언패킹을 통해 패킹/언패킹에 대해 묻는 문제인것 같습니다.
+
+
+출처: http://noisivohees.tistory.com/13 [noisiv_ohees]

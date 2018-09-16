@@ -1,0 +1,5 @@
+root@system32:/home/system32/pwnable.kr/bof# python bof.py 
+[+] Opening connection to pwnable.kr on port 9000: Done
+daddy, I just pwned a buFFer :)
+
+[*] Closed connection to pwnable.kr port 9000

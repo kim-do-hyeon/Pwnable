@@ -1,0 +1,8 @@
+root@system32:/home/system32/Write_up/pwn/pwnable.kr# python fd.py 
+[+] Connecting to pwnable.kr on port 2222: Done
+[!] Couldn't check security settings on 'pwnable.kr'
+[+] Starting remote process 'fd' on pwnable.kr: pid 6761
+[+] Receiving all data: Done (62B)
+[*] Stopped remote process 'fd' on pwnable.kr (pid 6761)
+good job :)
+mommy! I think I know what a file descriptor is!!
